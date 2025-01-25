@@ -10,5 +10,5 @@ clap = { version = "4.5.27", features = ["derive"] }
 rand = "0.8.5"
 rusqlite = { version = "0.33.0", features = ["url"] }
 serde = { version = "1.0.217", features = ["derive"] }
-struson = { version = "0.6.0", features = ["serde", "simple-api"] }
+serde_json = "1.0.137"
 url = { version = "2.5.4", features = ["serde"] }

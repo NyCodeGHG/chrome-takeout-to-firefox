@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     fs::File,
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
@@ -8,7 +9,6 @@ use base64::Engine;
 use clap::Parser;
 use rand::RngCore;
 use rusqlite::{OptionalExtension, Transaction};
-use struson::reader::simple::{multi_json_path::multi_json_path, SimpleJsonReader, ValueReader};
 use url::Url;
 
 mod hash;
@@ -18,18 +18,19 @@ fn main() -> anyhow::Result<()> {
 
     let mut history = FirefoxHistory::open_file(&cli.sqlite_db)?;
 
-    let file = File::open(cli.chrome_takeout_history_path)?;
+    let file = BufReader::new(File::open(cli.chrome_takeout_history_path)?);
 
-    let reader = SimpleJsonReader::new(file);
-    let result =
-        reader.read_seeked_multi(&multi_json_path!["Browser History", [*]], true, |reader| {
-            let entry: ChromeTakeoutEntry = reader.read_deserialize()?;
+    let takeout: ChromeTakeoutFile = serde_json::from_reader(file)?;
+
+    for chunk in takeout.history.chunks(1000) {
+        let mut batch = history.begin()?;
+        for entry in chunk {
             let title = if entry.title.is_empty() {
                 None
             } else {
                 Some(entry.title.as_str())
             };
-            let result = history.insert_visit(&entry.url, title, entry.time_usec);
+            let result = batch.insert_visit(&entry.url, title, entry.time_usec);
 
             if let Err(error) = result {
                 eprintln!(
@@ -37,15 +38,17 @@ fn main() -> anyhow::Result<()> {
                     entry
                 );
             }
-            Ok(())
-        });
-
-    if let Err(error) = result {
-        println!("An error occured: {error}");
-        std::process::exit(-1);
+        }
+        batch.commit()?;
     }
 
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+struct ChromeTakeoutFile {
+    #[serde(rename = "Browser History")]
+    history: Box<[ChromeTakeoutEntry]>,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -74,19 +77,30 @@ impl FirefoxHistory {
     pub fn open_file(path: &Path) -> anyhow::Result<Self> {
         let connection = rusqlite::Connection::open(path)?;
         connection.pragma_update(None, "journal_mode", "wal")?;
+        connection.pragma_update(None, "synchronous", "NORMAL")?;
         Ok(Self { connection })
     }
 
+    pub fn begin(&mut self) -> anyhow::Result<FirefoxHistoryBatch> {
+        Ok(FirefoxHistoryBatch {
+            transaction: self.connection.transaction()?,
+        })
+    }
+}
+
+struct FirefoxHistoryBatch<'a> {
+    transaction: Transaction<'a>,
+}
+
+impl FirefoxHistoryBatch<'_> {
     pub fn insert_visit(
         &mut self,
         url: &Url,
         title: Option<&str>,
         time: u64,
     ) -> anyhow::Result<()> {
-        let mut transaction = self.connection.transaction()?;
-
         let exists: bool = {
-            let mut statement = transaction.prepare_cached(
+            let mut statement = self.transaction.prepare_cached(
                 "SELECT EXISTS(SELECT 1 FROM moz_historyvisits WHERE visit_date = ?1)",
             )?;
             statement.query_row([time], |row| row.get(0))?
@@ -101,10 +115,10 @@ impl FirefoxHistory {
         }
 
         // find the place we want to visit
-        let place = find_or_insert_place(url, title, &mut transaction)?;
+        let place = find_or_insert_place(url, title, &mut self.transaction)?;
 
         {
-            let mut statement = transaction.prepare_cached(
+            let mut statement = self.transaction.prepare_cached(
                 r#"
                     UPDATE moz_places
                     SET visit_count = visit_count + 1,
@@ -116,7 +130,7 @@ impl FirefoxHistory {
 
             statement.execute((time, place))?;
 
-            let mut statement = transaction.prepare_cached(
+            let mut statement = self.transaction.prepare_cached(
                 r#"
             INSERT INTO moz_historyvisits
                 (from_visit, place_id, visit_date, visit_type, session, source, triggeringPlaceId)
@@ -128,8 +142,11 @@ impl FirefoxHistory {
             statement.execute((place, time))?;
         }
 
-        transaction.commit()?;
+        Ok(())
+    }
 
+    pub fn commit(self) -> anyhow::Result<()> {
+        self.transaction.commit()?;
         Ok(())
     }
 }
@@ -168,13 +185,13 @@ fn find_or_insert_place(
         let mut statement = transaction.prepare_cached(
             r#"
             INSERT INTO moz_places
-                (url, title, rev_host, visit_count, hidden,
-                    typed, frecency, last_visit_date, guid,
-                    foreign_count, url_hash, description,
-                    preview_image_url, site_name, origin_id,
-                    recalc_frecency, alt_frecency, recalc_alt_frecency
+                (url, title, rev_host, 
+                    last_visit_date, guid,
+                    url_hash, origin_id,
+                    recalc_frecency, 
+                    alt_frecency, recalc_alt_frecency
                 )
-            VALUES (?1, ?2, ?3, 0, 0, 0, 0, NULL, ?4, 0, ?5, NULL, NULL, NULL, ?6, 1, 0, 1)
+            VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, 1, 0, 1)
             RETURNING id
             "#,
         )?;

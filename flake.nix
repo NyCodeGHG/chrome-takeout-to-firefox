@@ -17,6 +17,7 @@
           rustc
           sqlite-interactive
           cargo-watch
+          cargo-flamegraph
         ];
         buildInputs = with pkgs; [
           sqlite
