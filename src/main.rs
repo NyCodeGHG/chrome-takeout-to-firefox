@@ -204,7 +204,7 @@ fn find_or_insert_origin(url: &Url, transaction: &mut Transaction) -> anyhow::Re
     let id: Option<u32> = transaction
         .query_row(
             "SELECT id FROM moz_origins WHERE host = (?1) AND prefix = (?2)",
-            (&prefix, &host),
+            (&host, &prefix),
             |row| row.get(0),
         )
         .optional()?;
