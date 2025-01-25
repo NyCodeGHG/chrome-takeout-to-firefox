@@ -9,7 +9,7 @@ The primary location for this repository is on [Codeberg](https://codeberg.org/m
 ### With Cargo:
 
 ```shell
-cargo install --locked --git https://codeberg.org/marie/chrome-takeout-to-firefox
+cargo install --locked --git https://codeberg.org/marie/chrome-takeout-to-firefox --tag 0.1.0
 ```
 
 ## Usage
