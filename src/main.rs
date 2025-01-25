@@ -21,8 +21,8 @@ fn main() -> anyhow::Result<()> {
     let file = File::open(cli.chrome_takeout_history_path)?;
 
     let reader = SimpleJsonReader::new(file);
-    reader
-        .read_seeked_multi(&multi_json_path!["Browser History", [*]], true, |reader| {
+    let result =
+        reader.read_seeked_multi(&multi_json_path!["Browser History", [*]], true, |reader| {
             let entry: ChromeTakeoutEntry = reader.read_deserialize()?;
             let title = if entry.title.is_empty() {
                 None
@@ -38,8 +38,12 @@ fn main() -> anyhow::Result<()> {
                 );
             }
             Ok(())
-        })
-        .unwrap();
+        });
+
+    if let Err(error) = result {
+        println!("An error occured: {error}");
+        std::process::exit(-1);
+    }
 
     Ok(())
 }
