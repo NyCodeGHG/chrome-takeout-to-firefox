@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut history = FirefoxHistory::open_file(&cli.sqlite_db)?;
 
-    let file = File::open(cli.chrome_history_path)?;
+    let file = File::open(cli.chrome_takeout_history_path)?;
 
     let reader = SimpleJsonReader::new(file);
     reader
@@ -54,9 +54,9 @@ struct ChromeTakeoutEntry {
 #[derive(clap::Parser)]
 #[command(version, about)]
 struct Cli {
-    /// Path to the chrome history json file.
-    #[arg(name = "chrome-history-path")]
-    chrome_history_path: PathBuf,
+    /// Path to the chrome takeout history json file.
+    #[arg(name = "chrome-takeout-history-path")]
+    chrome_takeout_history_path: PathBuf,
     /// Firefox places.sqlite to operate on.
     #[arg(name = "sqlite-db")]
     sqlite_db: PathBuf,
