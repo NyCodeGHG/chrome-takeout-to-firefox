@@ -1,0 +1,14 @@
+[package]
+name = "chrome-takeout-to-firefox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+base64 = "0.22.1"
+clap = { version = "4.5.27", features = ["derive"] }
+rand = "0.8.5"
+rusqlite = { version = "0.33.0", features = ["url"] }
+serde = { version = "1.0.217", features = ["derive"] }
+struson = { version = "0.6.0", features = ["serde", "simple-api"] }
+url = { version = "2.5.4", features = ["serde"] }
