@@ -97,7 +97,7 @@ impl FirefoxHistory {
         }
 
         // find the place we want to visit
-        let place = find_or_insert_place(url, title, time, &mut transaction)?;
+        let place = find_or_insert_place(url, title, &mut transaction)?;
 
         {
             let mut statement = transaction.prepare_cached(
@@ -133,7 +133,6 @@ impl FirefoxHistory {
 fn find_or_insert_place(
     url: &Url,
     title: Option<&str>,
-    time: u64,
     transaction: &mut Transaction,
 ) -> anyhow::Result<u32> {
     let id: Option<u32> = {
@@ -181,30 +180,7 @@ fn find_or_insert_place(
         )?
     };
 
-    update_place_meta(id, time, transaction)?;
     Ok(id)
-}
-
-fn update_place_meta(place: u32, time: u64, transaction: &mut Transaction) -> anyhow::Result<()> {
-    let mut statement = transaction.prepare_cached(
-        r#"
-        UPDATE moz_places_metadata
-        SET updated_at = max($1, updated_at)
-    "#,
-    )?;
-    let changes = statement.execute([time])?;
-    if changes < 1 {
-        let mut statement = transaction.prepare_cached(
-            r#"
-            INSERT INTO moz_places_metadata
-            (place_id, created_at, updated_at)
-            VALUES
-            (?1, ?2, ?2)
-        "#,
-        )?;
-        statement.execute((place, time))?;
-    }
-    Ok(())
 }
 
 fn find_or_insert_origin(url: &Url, transaction: &mut Transaction) -> anyhow::Result<u32> {
