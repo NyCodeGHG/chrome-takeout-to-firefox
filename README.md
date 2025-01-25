@@ -2,6 +2,8 @@
 
 Small tool to import Google Chrome's Takeout History into Mozilla Firefox.
 
+The primary location for this repository is on [Codeberg](https://codeberg.org/marie/chrome-takeout-to-firefox).
+
 ## Installation
 
 ### With Cargo:
