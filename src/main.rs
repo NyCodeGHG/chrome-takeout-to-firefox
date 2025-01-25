@@ -7,6 +7,7 @@ use std::{
 
 use base64::Engine;
 use clap::Parser;
+use indicatif::ProgressBar;
 use rand::RngCore;
 use rusqlite::{OptionalExtension, Transaction};
 use url::Url;
@@ -21,6 +22,8 @@ fn main() -> anyhow::Result<()> {
     let file = BufReader::new(File::open(cli.chrome_takeout_history_path)?);
 
     let takeout: ChromeTakeoutFile = serde_json::from_reader(file)?;
+
+    let progress = ProgressBar::new(takeout.history.len() as u64);
 
     for chunk in takeout.history.chunks(1000) {
         let mut batch = history.begin()?;
@@ -38,9 +41,12 @@ fn main() -> anyhow::Result<()> {
                     entry
                 );
             }
+            progress.inc(1);
         }
         batch.commit()?;
     }
+
+    progress.finish_and_clear();
 
     Ok(())
 }
